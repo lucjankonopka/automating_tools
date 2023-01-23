@@ -1,66 +1,113 @@
-import os
-import shutil
+from os import scandir, rename
+from os.path import join, exists
+from shutil import move
 import time
+
 import logging
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 
-source_dir = 'C:Users/lucja/Downloads'
+# Source destination:
+SOURCE_DIR = "C:\\Users\\lucja\\Downloads"
+
+
 # Destination folders:
-music_dir = 'C:Users/lucja/Downloads/Music'
-video_dir = 'C:Users/lucja/Downloads/Video'
-images_dir = 'C:Users/lucja/Downloads/Images'
-docs_dir = 'C:Users/lucja/Downloads/Documents'
-exe_dir = 'C:Users/lucja/Downloads/Programs'
-others_dir = 'C:Users/lucja/Downloads/Others'
+MUSIC_DIR = f"{SOURCE_DIR}\\Music"
+VIDEO_DIR = f"{SOURCE_DIR}\\Video"
+IMAGES_DIR = f"{SOURCE_DIR}\\Images"
+DOCS_DIR = f"{SOURCE_DIR}\\Documents"
+EXE_DIR = f"{SOURCE_DIR}\\Programs"
 
 
+# Most popular extensions:
+MUSIC_EXT = ['.mp3', '.acc', '.flac', '.wav', '.m4a', '.wma']
+IMAGE_EXT = ['.jpeg', '.jpg', '.png', '.gif', '.tiff', '.psd', '.eps', '.ai', '.indd', '.raw', '.svg']
+VIDEO_EXT = ['.mp4', '.mov', '.wmv', '.avi', '.mkv', '.avchd', '.webm']
+DOCS_EXT = ['.doc', '.docx', '.odt', '.pdf', '.xls', '.xlsx', '.ppt', '.pptx', '.html', 'csv']
+EXE_EXT = ['.exe', '.msi', '.py', '.wsf', '.bat', '.bin', '.com', '.jar', '.apk']
+
+
+# Moving file
 def move_new_file(dest, entry, name):
-    # file_exists = os.path.exists(dest + "/" + name)
-    # if file_exists:
-    #     unique_name = makeUnique(name)
-    #     os.rename(entry, unique_name)
-    shutil.move(entry, dest)
+    if exists(f"{dest}\\{name}"):
+        new_name = unique_filename(dest, name)
+        old = join(dest, name)
+        new = join(dest, new_name)
+        rename(old, new)
+    move(entry, dest)
 
-class MoveHandler(FileSystemEventHandler):
+# Adding a (number) to already existing file with:
+def unique_filename(dest, name):
+    dot = name.rfind('.')
+    counter = 1
+    while exists(f"{dest}\\{name}"):
+        name = f"{name[:dot]}({str(counter)}){name[dot:]}"
+        counter += 1
+    return name
+
+
+
+# Watchdog class copied from https://pythonhosted.org/watchdog/api.html#watchdog.events.FileSystemEventHandler
+# and adjusted
+
+class MoverHandler(FileSystemEventHandler):
     def on_modified(self, event):
-        with os.scandir(source_dir) as entries:
+        with scandir(SOURCE_DIR) as entries:
             for entry in entries:
                 name = entry.name
-                dest = source_dir
-                if name.endswith('.wav') or name.endswith('.mp3'):
-                    dest = music_dir
-                elif name.endswith('.avi') or name.endswith('.mp4') or name.endswith('.mov'):
-                    dest = video_dir
-                elif name.endswith('.png') or name.endswith('.jpg') or name.endswith('.jpeg'):
-                    dest = images_dir
-                elif name.endswith('.pdf') or name.endswith('.doc') or name.endswith('.docx'):
-                    dest = docs_dir
-                elif name.endswith('.exe'):
-                    dest = exe_dir
-                else:
-                    dest = others_dir
-                move_new_file(dest, entry, name)
-                
+                dot = name.rfind('.')
+
+                self.audio(entry, name, dot)
+                self.video(entry, name, dot)
+                self.images(entry, name, dot)
+                self.docs(entry, name, dot)
+                self.exe(entry, name, dot)
+
+    # Method for every file type:
+    def audio(self, entry, name, dot):
+        if name[dot:] in MUSIC_EXT:
+            dest = MUSIC_DIR
+            move_new_file(dest, entry, name)
+
+    def video(self, entry, name, dot):
+        if name[dot:] in (VIDEO_EXT):
+            dest = VIDEO_DIR
+            move_new_file(dest, entry, name)
+
+    def images(self, entry, name, dot):
+        if name[dot:] in (IMAGE_EXT):
+            dest = IMAGES_DIR
+            move_new_file(dest, entry, name)
+
+    def docs(self, entry, name, dot):
+        if name[dot:] in (DOCS_EXT):
+            dest = DOCS_DIR
+            move_new_file(dest, entry, name)
+
+    def exe(self, entry, name, dot):
+        if name[dot:] in (EXE_EXT):
+            dest = EXE_DIR                       
+            move_new_file(dest, entry, name)
+           
 
 
-
-
+# Watchdog sample copied from https://pythonhosted.org/watchdog/quickstart.html
+# path and event_handler adjusted
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
-    path = source_dir
-    event_handler = MoveHandler()
+    path = SOURCE_DIR
+    event_handler = MoverHandler()
     observer = Observer()
     observer.schedule(event_handler, path, recursive=True)
     observer.start()
     try:
         while True:
-            time.sleep(10)
+            time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()
     observer.join()
